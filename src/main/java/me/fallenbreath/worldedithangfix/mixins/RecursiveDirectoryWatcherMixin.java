@@ -2,7 +2,7 @@
  * This file is part of the worldedit-hang-fix project, licensed under the
  * GNU Lesser General Public License v3.0
  *
- * Copyright (C) 2024  Fallen_Breath and contributors
+ * Copyright (C) 2026  Fallen_Breath and contributors
  *
  * worldedit-hang-fix is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -23,31 +23,35 @@ package me.fallenbreath.worldedithangfix.mixins;
 import me.fallenbreath.worldedithangfix.WorldEditHangFixMod;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
-
-import java.util.Timer;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @SuppressWarnings("UnresolvedMixinReference")
 @Pseudo
-@Mixin(targets = "com.sk89q.worldedit.command.util.FutureProgressListener")
-public abstract class FutureProgressListenerMixin
+@Mixin(targets = "com.sk89q.worldedit.internal.util.RecursiveDirectoryWatcher")
+public abstract class RecursiveDirectoryWatcherMixin
 {
+	@Shadow(remap = false)
+	private Thread watchThread;
+
 	/**
-	 * Ensure the timer thread is a daemon thread, or the server will hang forever
+	 * Ensure the thread is a daemon thread,
+	 * or the server might hang forever if the thread itself can't exit by itself (e.g. in worldedit >= 7.4.1)
 	 */
-	@Redirect(
-			method = "<clinit>",
+	@Inject(
+			method = "start",
 			at = @At(
-					value = "NEW",
-					target = "()Ljava/util/Timer;",
+					value = "INVOKE",
+					target = "Ljava/lang/Thread;start()V",
 					remap = false
 			),
 			remap = false
 	)
-	private static Timer replaceWithTimerWithDaemonThread()
+	private void setWatchThreadDaemon(CallbackInfo ci)
 	{
-		WorldEditHangFixMod.LOGGER.debug("Ensuring that the FutureProgressListener#timer runs on a daemon thread");
-		return new Timer(true);
+		WorldEditHangFixMod.LOGGER.debug("Ensuring that the RecursiveDirectoryWatcher#start launch a daemon thread");
+		this.watchThread.setDaemon(true);
 	}
 }
